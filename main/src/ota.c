@@ -10,6 +10,7 @@
 #include "esp_ota_ops.h"
 #include "nvs_flash.h"
 #include "driver/gpio.h"
+#include "esp_bt.h"
 
 static const char *TAG = "OTA";
 
@@ -105,7 +106,11 @@ static void wifi_init_sta(void)
 
 static void ota_task(void *pvParameter)
 {
-    ESP_LOGI(TAG, "Starting OTA task");
+    ESP_LOGI(TAG, "Stopping BLE before OTA...");
+    esp_bluedroid_disable();
+    esp_bt_controller_disable();
+    ESP_LOGI(TAG, "BLE disabled, starting OTA download");
+
     esp_http_client_config_t config = {
         .url = OTA_URL,
         .cert_pem = ca_cert_pem_start,
@@ -133,6 +138,10 @@ static void ota_task(void *pvParameter)
     ESP_LOGI(TAG, "disconnecting WiFi...");
     esp_wifi_disconnect();
     esp_wifi_stop();
+
+    ESP_LOGI(TAG, "OTA failed, restarting to restore BLE...");
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    esp_restart();
 
     vTaskDelete(NULL);
 }
