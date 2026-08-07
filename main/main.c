@@ -30,6 +30,7 @@
 #include "alarm.h"
 #include "key.h"
 #include "ota.h"
+#include "esp_ota_ops.h"
 
 #define PROFILE_NUM 3
 #define HEART_PROFILE_APP_ID 0
@@ -728,6 +729,9 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 void app_main(void)
 {
     esp_err_t ret;
+
+    /* 确认当前 OTA 固件有效，防止 bootloader 回滚。 */
+    esp_ota_mark_app_valid_cancel_rollback();
 
     /* 初始化 LED 硬件。 */
     led_init();

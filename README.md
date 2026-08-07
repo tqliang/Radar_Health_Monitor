@@ -154,17 +154,19 @@ Radar_Communication/
 
 ### 1. 初始化阶段
 
-1. 初始化 LED、按键、蜂鸣器、报警模块
-2. 初始化 UART1，用于接收雷达传感器数据
-3. 初始化雷达数据接收器（均值滤波 + 5 帧环形缓冲）
-4. 初始化 NVS Flash
-5. 释放经典蓝牙控制器内存，仅保留 BLE 模式
-6. 初始化并启动蓝牙控制器和 Bluedroid 协议栈
-7. 设置设备名为 `Health_Device`
-8. 注册 GAP 和 GATT 事件回调
-9. 注册三个 GATT 服务应用：心率、自动化 IO、呼吸频率
-10. 设置本地 MTU 为 500 字节
-11. 启动三个 FreeRTOS 任务：心率更新、呼吸频率更新、报警监控
+1. 确认当前 OTA 固件有效（回滚保护）
+2. 初始化 LED、按键、蜂鸣器、报警模块
+3. 初始化 OTA 按键监控（KEY3 长按 >3s 触发升级）
+4. 初始化 UART1，用于接收雷达传感器数据
+5. 初始化雷达数据接收器（均值滤波 + 5 帧环形缓冲）
+6. 初始化 NVS Flash
+7. 释放经典蓝牙控制器内存，仅保留 BLE 模式
+8. 初始化并启动蓝牙控制器和 Bluedroid 协议栈
+9. 设置设备名为 `Health_Device`
+10. 注册 GAP 和 GATT 事件回调
+11. 注册三个 GATT 服务应用：心率、自动化 IO、呼吸频率
+12. 设置本地 MTU 为 500 字节
+13. 启动三个 FreeRTOS 任务：心率更新、呼吸频率更新、报警监控
 
 ### 2. 广播与连接
 
@@ -227,6 +229,67 @@ Radar_Communication/
     <td><img src="APP_PIC/SaveToLocal.jpg" width="360" alt="本地保存"></td>
   </tr>
 </table>
+
+## OTA 远程升级
+
+### 触发方式
+
+长按 **KEY3 (GPIO41)** 超过 3 秒触发 OTA 升级，短按被忽略。
+
+### 升级流程
+
+```
+KEY3 长按 >3s
+    ↓
+禁用 BLE (释放射频和 RAM)
+    ↓
+WiFi 连接 (SSID: 1234, 密码: 123456789, 超时 10s, 最多重连 10 次)
+    ↓
+HTTPS 下载固件 (TLS 证书验证 + SHA256 完整性校验)
+    ↓
+写入空闲 OTA 分区 (AB 双分区, 不覆盖当前运行固件)
+    ↓
+    ├── 成功 → esp_restart() 重启到新固件 → app_main() 确认固件有效
+    └── 失败 → esp_restart() 重启恢复 BLE 功能
+```
+
+### 分区表
+
+使用自定义分区表 `partitions_ota.csv`，适配 ESP32-S3-N16R8 (16MB Flash)：
+
+| 分区名   | 类型 | 偏移      | 大小   | 说明           |
+| -------- | ---- | --------- | ------ | -------------- |
+| nvs      | data | 0x9000    | 64KB   | NVS 存储       |
+| otadata  | data | 0x19000   | 8KB    | OTA 状态数据   |
+| phy_init | data | 0x1B000   | 4KB    | PHY 初始化参数 |
+| nvs_keys | data | 0x1C000   | 4KB    | NVS 加密密钥   |
+| factory  | app  | 0x20000   | 4MB    | 出厂固件       |
+| ota_0    | app  | 0x420000  | 4MB    | OTA 槽位 0     |
+| ota_1    | app  | 0x820000  | 4MB    | OTA 槽位 1     |
+
+### 回滚机制
+
+ESP-IDF 内置回滚保护，新固件启动后必须调用 `esp_ota_mark_app_valid_cancel_rollback()` 确认有效：
+
+```
+新固件启动
+    ↓
+Bootloader 设置"回滚待定"标志
+    ↓
+app_main() 第一行调用 esp_ota_mark_app_valid_cancel_rollback()
+    ↓
+    ├── 正常执行 → 取消回滚标志 → ✅ 新固件永久生效
+    └── 崩溃/看门狗 → 回滚标志仍在 → 🔄 自动回滚到上一个正常固件
+```
+
+### 安全校验
+
+| 层级 | 说明 |
+|------|------|
+| **TLS** | HTTPS 传输加密，使用 `server_certs/ca_cert.pem` 验证 COS 服务器证书 |
+| **SHA256** | 固件镜像末尾自带 SHA256 摘要，写入后自动校验 |
+| **AB 双分区** | 下载到空闲分区，不覆盖当前运行固件，失败不影响现有功能 |
+| **回滚保护** | 新固件启动异常时自动回滚到上一个正常固件 |
 
 ## 更多参考
 
