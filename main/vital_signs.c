@@ -74,11 +74,11 @@
  *  [1] 距离 bin 聚合
  *      16 chirp × 3 ant = 48 个值 → 取平均作为该 bin 的当前帧幅度
 */
-static void reduce_to_range_bins(const uint16_t *raw, float bins_out[VS_NUM_SAMPLES_PER_CHIRP])
+static void reduce_to_range_bins(const uint16_t *raw, float bins_out[VS_NUM_SAMPLES_PER_CHIRP])// 距离 bin 聚合
 {
-    const int N = VS_NUM_SAMPLES_PER_CHIRP;
-    const int C = VS_NUM_CHIRPS_PER_FRAME;
-    const int A = VS_NUM_RX_ANTENNAS;
+    const int N = VS_NUM_SAMPLES_PER_CHIRP;// 每个 bin 的样本数
+    const int C = VS_NUM_CHIRPS_PER_FRAME;// 每个 bin 的 chirp 数
+    const int A = VS_NUM_RX_ANTENNAS;// 接收天线数
 
     /* 同时计算 "慢时间方差" (同 bin 跨 chirp 的波动幅度)
      * 波动大说明该 bin 内有运动目标 (如胸腔) */
@@ -88,7 +88,7 @@ static void reduce_to_range_bins(const uint16_t *raw, float bins_out[VS_NUM_SAMP
         for (int c = 0; c < C; c++)
             for (int a = 0; a < A; a++)
             {
-                uint32_t idx = (uint32_t)(c * A + a) * (uint32_t)N + (uint32_t)i;
+                uint32_t idx = (uint32_t)(c * A + a) * (uint32_t)N + (uint32_t)i;// 计算当前样本的索引
                 sum += raw[idx];
             }
         bins_out[i] = (float)sum / (float)(C * A);
@@ -101,21 +101,21 @@ static void reduce_to_range_bins(const uint16_t *raw, float bins_out[VS_NUM_SAMP
  *      y[t]  = x[t] - bg[t]
  *      α=0.98 → 时间常数 ~50 帧 ~= 10 秒
 */
-static float s_mti_bg[VS_NUM_SAMPLES_PER_CHIRP];
-static int   s_mti_inited = 0;
+static float s_mti_bg[VS_NUM_SAMPLES_PER_CHIRP];// MTI 背景消除系数，全局
+static int   s_mti_inited = 0;// 是否初始化
 
 static void mti_apply(float x[VS_NUM_SAMPLES_PER_CHIRP])
 {
-    if (!s_mti_inited)
+    if (!s_mti_inited)// 初始化背景消除系数
     {
         for (int b = 0; b < VS_NUM_SAMPLES_PER_CHIRP; b++)
-            s_mti_bg[b] = x[b];
-        s_mti_inited = 1;
+            s_mti_bg[b] = x[b];// 初始化背景消除系数
+        s_mti_inited = 1;// 标记为已初始化
         return;
     }
     for (int b = 0; b < VS_NUM_SAMPLES_PER_CHIRP; b++)
     {
-        s_mti_bg[b] = VS_MTI_ALPHA * s_mti_bg[b] + (1.0f - VS_MTI_ALPHA) * x[b];
+        s_mti_bg[b] = VS_MTI_ALPHA * s_mti_bg[b] + (1.0f - VS_MTI_ALPHA) * x[b];// 更新背景消除系数
         x[b] = x[b] - s_mti_bg[b];
     }
 }
@@ -139,7 +139,7 @@ static void range_smooth(float x[VS_NUM_SAMPLES_PER_CHIRP])
  *  [4] 环形时间序列缓冲 (每个 bin 一条时间序列)
  *      容量 VS_RING_SIZE = 128 帧
 */
-static float s_ring[VS_NUM_SAMPLES_PER_CHIRP][VS_RING_SIZE];
+static float s_ring[VS_NUM_SAMPLES_PER_CHIRP][VS_RING_SIZE];// 环形缓冲，每个 bin 一条时间序列
 static int   s_ring_head = 0;
 static int   s_ring_fill = 0;  /* 已填充帧数 (≤ VS_RING_SIZE) */
 
@@ -181,9 +181,9 @@ static void time_smooth(float *x, int n)
 static inline void remove_dc(float *x, int n)
 {
     float mean = 0.0f;
-    for (int i = 0; i < n; i++) mean += x[i];
+    for (int i = 0; i < n; i++) mean += x[i];// 计算平均值
     mean /= (float)n;
-    for (int i = 0; i < n; i++) x[i] -= mean;
+    for (int i = 0; i < n; i++) x[i] -= mean;// 去直流分量
 }
 
 /* 
@@ -202,9 +202,9 @@ static inline void bq_reset(biquad_t *bq)
     bq->y1 = bq->y2 = 0.0f;
 }
 
-static inline void bq_design_hp(biquad_t *bq, float fc, float fs)
+static inline void bq_design_hp(biquad_t *bq, float fc, float fs)// 设计高通滤波器  
 {
-    float w0 = 2.0f * (float)M_PI * fc / fs;
+    float w0 = 2.0f * (float)M_PI * fc / fs;// 计算归一化截止频率
     float cos_w = cosf(w0);
     float alpha = sinf(w0) / 1.41421356237f;  /* Q=√2/2 (Butterworth) */
     float a0 = 1.0f + alpha;
@@ -215,7 +215,7 @@ static inline void bq_design_hp(biquad_t *bq, float fc, float fs)
     bq->a2 =  (1.0f - alpha) / a0;
 }
 
-static inline void bq_design_lp(biquad_t *bq, float fc, float fs)
+static inline void bq_design_lp(biquad_t *bq, float fc, float fs)// 设计低通滤波器
 {
     float w0 = 2.0f * (float)M_PI * fc / fs;
     float cos_w = cosf(w0);
@@ -244,22 +244,22 @@ static void bandpass_filtfilt(float *x, int n, float low_hz, float high_hz, floa
     bq_design_hp(&hp, low_hz, fs);
     bq_design_lp(&lp, high_hz, fs);
 
-    remove_dc(x, n);
-
+    remove_dc(x, n);// 去直流分量
+    
     /* --- Forward pass --- */
-    bq_reset(&hp); bq_reset(&lp);
+    bq_reset(&hp); bq_reset(&lp);// 重置高通滤波器和低通滤波器
     for (int i = 0; i < n; i++)
     {
-        float y = bq_process(&hp, x[i]);
-        x[i] = bq_process(&lp, y);
+        float y = bq_process(&hp, x[i]);// 高通滤波
+        x[i] = bq_process(&lp, y);// 低通滤波
     }
 
     /* --- Backward pass (关键: 消除相位失真) --- */
-    bq_reset(&hp); bq_reset(&lp);
+    bq_reset(&hp); bq_reset(&lp);// 重置高通滤波器和低通滤波器
     for (int i = n - 1; i >= 0; i--)
     {
-        float y = bq_process(&hp, x[i]);
-        x[i] = bq_process(&lp, y);
+        float y = bq_process(&hp, x[i]);// 高通滤波
+        x[i] = bq_process(&lp, y);// 低通滤波
     }
 }
 
@@ -268,12 +268,12 @@ static void highpass_filtfilt(float *x, int n, float fc, float fs)
 {
     biquad_t hp;
     bq_design_hp(&hp, fc, fs);
-    remove_dc(x, n);
+    remove_dc(x, n);// 去直流分量
 
-    bq_reset(&hp);
-    for (int i = 0; i < n; i++) x[i] = bq_process(&hp, x[i]);
-    bq_reset(&hp);
-    for (int i = n - 1; i >= 0; i--) x[i] = bq_process(&hp, x[i]);
+    bq_reset(&hp);// 重置高通滤波器
+    for (int i = 0; i < n; i++) x[i] = bq_process(&hp, x[i]);// 前向滤波
+    bq_reset(&hp);// 重置高通滤波器，准备反向滤波
+    for (int i = n - 1; i >= 0; i--) x[i] = bq_process(&hp, x[i]);// 反向滤波
 }
 
 /* 
@@ -284,7 +284,7 @@ static float s_fft_cos[VS_FFT_SIZE];
 static float s_fft_sin[VS_FFT_SIZE];
 static int   s_fft_ready = 0;
 
-static void fft_init(void)
+static void fft_init(void)// 初始化 FFT 表
 {
     for (int k = 0; k < VS_FFT_SIZE / 2; k++)
     {
@@ -295,7 +295,7 @@ static void fft_init(void)
     s_fft_ready = 1;
 }
 
-static void fft_forward(float *x, int N)
+static void fft_forward(float *x, int N)// 前向 FFT
 {
     if (!s_fft_ready) fft_init();
 
@@ -316,21 +316,24 @@ static void fft_forward(float *x, int N)
     /* butterfly */
     for (int len = 2; len <= N; len <<= 1)
     {
-        int half = len >> 1;
-        int step = VS_FFT_SIZE / len;
-        for (int i = 0; i < N; i += len)
+        int half = len >> 1;// 计算半长
+        int step = VS_FFT_SIZE / len;// 计算步长
+        for (int i = 0; i < N; i += len)// 遍历每个子周期
         {
-            for (int j = i, k = 0; j < i + half; j++, k += step)
+            for (int j = i, k = 0; j < i + half; j++, k += step)// 遍历每个子周期的前半部分
             {
                 float wr = s_fft_cos[k];
                 float wi = s_fft_sin[k];
+
                 float tr = wr * x[2 * (j + half)] - wi * x[2 * (j + half) + 1];
                 float ti = wr * x[2 * (j + half) + 1] + wi * x[2 * (j + half)];
                 float ur = x[2 * j], ui = x[2 * j + 1];
-                x[2 * j] = ur + tr;
-                x[2 * j + 1] = ui + ti;
-                x[2 * (j + half)] = ur - tr;
-                x[2 * (j + half) + 1] = ui - ti;
+                // 计算前半部分的 FFT 值
+                x[2 * j] = ur + tr;// 计算实部
+                x[2 * j + 1] = ui + ti;// 计算虚部
+                // 计算后半部分的 FFT 值
+                x[2 * (j + half)] = ur - tr;// 计算实部
+                x[2 * (j + half) + 1] = ui - ti;// 计算虚部
             }
         }
     }
@@ -344,19 +347,14 @@ static void hann_init(void)
         s_hann[i] = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * (float)i / (float)(VS_FFT_SIZE - 1)));
 }
 
-/* 
- *  [8] 估计器 #1: FFT + 抛物线插值 + 信噪比/谐波验证
- *
- *  改进:
- *   - 信噪比校验: max_peak > 1.8 × 邻域均值 才认为有效
- *   - 谐波验证: 心跳检测时, 若峰频 ≈ k × breath_hz (k=1,2,3),
- *     标记为 "疑似谐波串扰" → 降低此估计的权重
-*/
-static float estimate_fft(const float *sig, int n,
-                          float low_hz, float high_hz, float fs,
-                          float *out_snr)
+//估计器 #1: FFT + 抛物线插值 + 信噪比/谐波验证
+static float estimate_fft(const float *sig, int n,float low_hz, float high_hz, float fs,float *out_snr)
 {
-    if (n < 16) { if (out_snr) *out_snr = 0.0f; return 0.0f; }
+    if (n < 16) // 信号太短, 无法进行 FFT
+    { 
+        if (out_snr) *out_snr = 0.0f; 
+        return 0.0f; 
+    }
 
     float buf[2 * VS_FFT_SIZE];
 
@@ -380,26 +378,38 @@ static float estimate_fft(const float *sig, int n,
     int k_max = (int)(high_hz / bin_hz + 0.5f);
     if (k_min < 1) k_min = 1;
     if (k_max > VS_FFT_SIZE / 2) k_max = VS_FFT_SIZE / 2;
-    if (k_min >= k_max) { if (out_snr) *out_snr = 0.0f; return 0.0f; }
 
-    float mags[VS_FFT_SIZE / 2 + 1];
+    if (k_min >= k_max) 
+    { 
+        if (out_snr) *out_snr = 0.0f; 
+        return 0.0f; 
+    }
+
+    float mags[VS_FFT_SIZE / 2 + 1];// 存储 FFT 结果的幅度
     float sum_mag = 0.0f;
     float max_mag = -1.0f;
+
     int   peak_k = k_min;
-    for (int k = k_min; k <= k_max; k++)
+    for (int k = k_min; k <= k_max; k++)// 遍历 FFT 结果的每个 bin
     {
-        float re = buf[2 * k], im = buf[2 * k + 1];
-        mags[k] = sqrtf(re * re + im * im);
-        if (mags[k] > max_mag) { max_mag = mags[k]; peak_k = k; }
-        sum_mag += mags[k];
+        float re = buf[2 * k], im = buf[2 * k + 1];// 获取 FFT 结果的实部和虚部
+        mags[k] = sqrtf(re * re + im * im);// 计算幅度
+        if (mags[k] > max_mag) // 更新最大幅度和最大峰的 bin
+        { 
+            max_mag = mags[k]; 
+            peak_k = k; // 更新最大幅度和最大峰的 bin
+        }
+        sum_mag += mags[k];// 累加幅度
     }
-    int nbins = k_max - k_min + 1;
-    float avg_mag = sum_mag / (float)nbins;
+
+    int nbins = k_max - k_min + 1;// 计算 FFT 结果的 bin 数
+    float avg_mag = sum_mag / (float)nbins;// 计算 FFT 结果的平均幅度
 
     /* 信噪比: 最大峰 / 邻域均值 (排除最大峰本身) */
     float noise = (sum_mag - max_mag) / (float)(nbins - 1 > 0 ? nbins - 1 : 1);
-    float snr = (noise > 1e-10f) ? (max_mag / noise) : 0.0f;
-    if (out_snr) *out_snr = snr;
+    float snr = (noise > 1e-10f) ? (max_mag / noise) : 0.0f;// 计算信噪比
+    
+    if (out_snr) *out_snr = snr;// 输出信噪比
 
     /* 信噪比太低 → 放弃 */
     if (snr < 1.8f || max_mag < 1e-8f) return 0.0f;
@@ -413,6 +423,7 @@ static float estimate_fft(const float *sig, int n,
         float alpha = mags[peak_k - 1];
         float beta  = mags[peak_k];
         float gamma = mags[peak_k + 1];
+        
         float denom = alpha - 2.0f * beta + gamma;
         if (fabsf(denom) > 1e-10f)
         {
@@ -424,19 +435,18 @@ static float estimate_fft(const float *sig, int n,
     else peak_hz = (float)peak_k * bin_hz;
 
     if (peak_hz < low_hz || peak_hz > high_hz) return 0.0f;
-    return peak_hz * 60.0f;
+    return peak_hz * 60.0f; // 返回呼吸/心率 (单位: bpm, 即 Hz × 60)
 }
 
 /* 
- *  [9] 估计器 #2: 时域自相关 (最稳健的周期检测)
+ * 估计器 #2: 时域自相关
  *
- *  直接时域计算:
+ *  直接时域计算相关函数:
  *      R[k] = (1/(N-k)) * Σ_{n=0}^{N-k-1} x[n]·x[n+k]
  *  在 [lag_min, lag_max] 内找 R[k] 的第一个正峰
  *  (第一个正峰对应基频周期，避免谐波误判)
 */
-static float estimate_autocorr(const float *sig, int n,
-                                float low_hz, float high_hz, float fs)
+static float estimate_autocorr(const float *sig, int n,float low_hz, float high_hz, float fs)
 {
     if (n < 20) return 0.0f;
 
@@ -482,13 +492,14 @@ static float estimate_autocorr(const float *sig, int n,
     float best_r = -1e30f;
     int   best_k = -1;
 
-    for (int k = lag_min + 1; k < lag_max; k++)
+    for (int k = lag_min + 1; k < lag_max; k++)// 寻找第一个正峰的 lag
     {
         if (R[k] > R[k - 1] && R[k] >= R[k + 1] && R[k] > 0.15f)
         {
-            /* 这是一个正峰，取 "第一个足够高" 的峰
-             * 如果发现更大的峰就更新 (更大的峰 = 更清晰的周期) */
-            if (R[k] > best_r) { best_r = R[k]; best_k = k; }
+            if (R[k] > best_r) 
+            { 
+                best_r = R[k]; best_k = k; 
+            }
         }
     }
 
@@ -501,17 +512,25 @@ static float estimate_autocorr(const float *sig, int n,
     float denom = alpha - 2.0f * beta + gamma;
     float peak_lag;
     if (fabsf(denom) > 1e-10f)
+    {
+        float p = 0.5f * (alpha - gamma) / denom;
         peak_lag = (float)best_k + 0.5f * (alpha - gamma) / denom;
+    }
     else
+    {
         peak_lag = (float)best_k;
+    }
 
     float bpm = 60.0f * fs / peak_lag;
-    if (bpm < low_hz * 60.0f || bpm > high_hz * 60.0f) return 0.0f;
+    if (bpm < low_hz * 60.0f || bpm > high_hz * 60.0f) 
+    {
+        return 0.0f;
+    }
     return bpm;
 }
 
 /* 
- *  [10] 估计器 #3: 时域峰值检测 (零交叉 + 峰谷交替)
+ * 估计器 #3: 时域峰值检测 (零交叉 + 峰谷交替)
  *
  *  流程:
  *    (1) 过零检测: 标记 x[n] 从负到正的零交叉点
@@ -615,7 +634,7 @@ static float estimate_peaks(const float *sig, int n,
 }
 
 /* 
- *  [11] 三路估计器融合
+ *  三路估计器融合
  *      输入: fft_bpm, ac_bpm, peak_bpm (0 表示该路无效)
  *      输出: 加权平均 bpm, 或 0 表示所有估计器都失败
  *
@@ -676,7 +695,7 @@ static float fuse_estimates(float fft_bpm, float ac_bpm, float peak_bpm,
 }
 
 /* 
- *  [12] 历史 fallback (真正有效的实现)
+ *  历史 fallback (真正有效的实现)
  *
  *  维护:
  *    - 一个 "历史有效估计" 队列 (最近 N 帧的值)
