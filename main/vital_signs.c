@@ -646,8 +646,7 @@ static float estimate_peaks(const float *sig, int n,
  *    - 如果只有 1 个有效: 信任它，但降低 "置信度" 标志
  *    - 如果 0 个: 返回 0, 交由 fallback 处理
 */
-static float fuse_estimates(float fft_bpm, float ac_bpm, float peak_bpm,
-                            float low_bpm, float high_bpm)
+static float fuse_estimates(float fft_bpm, float ac_bpm, float peak_bpm,float low_bpm, float high_bpm)
 {
     float vals[3];
     float weights[3];
@@ -798,7 +797,7 @@ static float history_update(history_t *h, float raw_estimate,
 }
 
 /* 
- *  [13] bin 选择: 能量 + 慢时间波动 双指标
+ *  bin 选择: 能量 + 慢时间波动 双指标
  *
  *  对每个 bin, 计算:
  *    (1) 时间序列的标准差 (越大越可能是运动目标)
@@ -899,7 +898,7 @@ static int select_best_bins(const float fs,
 }
 
 /* 
- *  [14] 单个 bin 的完整呼吸/心跳估计
+ *  单个 bin 的完整呼吸/心跳估计
  *
  *  关键: "呼吸-心跳分离"
  *    Step 1: 呼吸带通 → 三路估计 → fuse → breath_bpm
@@ -958,7 +957,7 @@ static void estimate_single_bin(int bin, float fs,
 }
 
 /* 
- *  [15] 对外 API
+ *  对外 API
  */
 
 static int s_last_bin = VS_BIN_MIN;

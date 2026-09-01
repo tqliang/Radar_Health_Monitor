@@ -6,11 +6,12 @@
 
 static const char *TAG = "uart2_radar";
 
-/* ---------------- CRC-8 (MAXIM/DALLAS, 多项式 0x31) ----------------
+/* 
+ * CRC-8 (MAXIM/DALLAS, 多项式 0x31)
  * poly = x^8 + x^5 + x^4 + 1 = 0x31 (bits 7..0)
  * init = 0x00, no final XOR
  * 广泛用于 1-Wire / SMBus, 此处复用作短帧完整性校验
- * ------------------------------------------------------------------ */
+*/
 static uint8_t crc8_maxim(const uint8_t *data, uint32_t len)
 {
     uint8_t crc = 0x00;
@@ -28,9 +29,7 @@ static uint8_t crc8_maxim(const uint8_t *data, uint32_t len)
     return crc;
 }
 
-/* -----------------------------------------------------------------------
- * 初始化 UART2
- * ----------------------------------------------------------------------- */
+// 初始化 UART2
 void uart2_radar_init(void)
 {
     uart_config_t uart_cfg = {
@@ -79,10 +78,10 @@ void uart2_radar_init(void)
              UART2_RADAR_BAUD, UART2_RADAR_TXD, UART2_RADAR_RXD);
 }
 
-/* -----------------------------------------------------------------------
+/* 
  * 把 "呼吸 bpm + 心率 bpm" 打成二进制帧, 通过 UART2 阻塞发送
  *   帧格式详见 uart2_radar.h
- * ----------------------------------------------------------------------- */
+*/
 void uart2_radar_send_frame(float breath_bpm, float heart_bpm, uint32_t frame_cnt)
 {
     uint8_t frame[UART2_FRAME_SIZE];
