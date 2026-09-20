@@ -498,7 +498,8 @@ static float estimate_autocorr(const float *sig, int n,float low_hz, float high_
         {
             if (R[k] > best_r) 
             { 
-                best_r = R[k]; best_k = k; 
+                best_r = R[k];
+                best_k = k; 
             }
         }
     }
@@ -539,13 +540,15 @@ static float estimate_autocorr(const float *sig, int n,float low_hz, float high_
  *    (4) 剔除野值: 排除偏离均值 > 25% 的间隔
  *    (5) 平均 → bpm
 */
-static float estimate_peaks(const float *sig, int n,
-                            float low_hz, float high_hz, float fs)
+static float estimate_peaks(const float *sig, int n,float low_hz, float high_hz, float fs)
 {
     if (n < 20) return 0.0f;
 
     float mean = 0.0f;
-    for (int i = 0; i < n; i++) mean += sig[i];
+    for (int i = 0; i < n; i++) 
+    {
+        mean += sig[i];
+    }
     mean /= (float)n;
 
     /* 找幅度范围，判断信号强弱 */
@@ -559,12 +562,13 @@ static float estimate_peaks(const float *sig, int n,
     if (range < 1e-6f) return 0.0f;
 
     /* 扫描: 检测 "正方向零交叉"，在两个零交叉之间记录峰值位置 */
-    int   peak_pos[64];
-    int   n_peaks = 0;
-    int   last_cross = -1;
-    int   cur_max_i = -1;
-    float cur_max_v = -1e30f;
-    float threshold = range * 0.10f;  /* 峰值至少 > 10% 的 range */
+    int   peak_pos[64];      // 存储检测到的峰值位置（帧索引）
+    int   n_peaks = 0;       // 当前已检测到的峰值数量
+    int   last_cross = -1;   // 最近一次正向零交叉的帧索引（-1 = 尚未遇到）
+    int   cur_max_i = -1;    // 当前区间内最大值的帧索引（-1 = 尚未找到）
+    float cur_max_v = -1e30f; // 当前区间内最大值的幅度
+    float threshold = range * 0.10f; // 峰值阈值 = 整体波动范围的 10%
+
 
     for (int i = 1; i < n; i++)
     {
@@ -577,10 +581,13 @@ static float estimate_peaks(const float *sig, int n,
             /* 保存上一段的最大峰值 */
             if (cur_max_i >= 0 && cur_max_v > threshold)
             {
-                if (n_peaks < 64) peak_pos[n_peaks++] = cur_max_i;
+                if (n_peaks < 64) 
+                {
+                    peak_pos[n_peaks++] = cur_max_i;
+                }
             }
             last_cross = i;
-            cur_max_i = -1;
+            cur_max_i = -1;// 重置当前区间内最大值的帧索引
             cur_max_v = -1e30f;
         }
 
@@ -593,40 +600,53 @@ static float estimate_peaks(const float *sig, int n,
     }
     /* 最后一段 */
     if (cur_max_i >= 0 && cur_max_v > threshold && n_peaks < 64)
+    {
         peak_pos[n_peaks++] = cur_max_i;
+    }
 
     if (n_peaks < 3) return 0.0f;  /* 至少要 3 个峰才可靠 */
 
     /* 计算峰间隔 (样本数) */
     float intervals[64];
-    int n_int = 0;
+    int n_int = 0;// 当前已检测到的峰间隔数量
     for (int i = 1; i < n_peaks; i++)
     {
         float d = (float)(peak_pos[i] - peak_pos[i - 1]);
-        if (d > 1.0f) intervals[n_int++] = d;
+        if (d > 1.0f) // 过滤掉异常值（间隔 < 1.0f）
+        {
+            intervals[n_int++] = d;
+        }
     }
     if (n_int < 2) return 0.0f;
 
     /* 简易异常值剔除: 中位数法
      * 先排序，取中间 60% 的值做平均 */
     for (int i = 0; i < n_int - 1; i++)
+    {
         for (int j = 0; j < n_int - i - 1; j++)
+        {
             if (intervals[j] > intervals[j + 1])
             {
                 float t = intervals[j];
                 intervals[j] = intervals[j + 1];
                 intervals[j + 1] = t;
             }
+        }
+    }
 
     /* 取中间 60% */
     int lo = n_int / 5;
     int hi = n_int - lo - 1;
-    float sum_good = 0.0f;
-    int   cnt_good = 0;
-    for (int i = lo; i <= hi; i++) { sum_good += intervals[i]; cnt_good++; }
+    float sum_good = 0.0f;// 有效峰间隔的总和
+    int   cnt_good = 0;// 有效峰间隔的数量
+    for (int i = lo; i <= hi; i++) 
+    { 
+        sum_good += intervals[i]; 
+        cnt_good++; 
+    }
     if (cnt_good < 1) return 0.0f;
 
-    float avg_samples = sum_good / (float)cnt_good;
+    float avg_samples = sum_good / (float)cnt_good;// 有效峰间隔的平均样本数
     float bpm = 60.0f * fs / avg_samples;
 
     if (bpm < low_hz * 60.0f || bpm > high_hz * 60.0f) return 0.0f;
@@ -806,8 +826,7 @@ static float history_update(history_t *h, float raw_estimate,
  *
  *  返回 top-3 bins (供多 bin 融合使用)
 */
-static int select_best_bins(const float fs,
-                            int *out_best3, float *out_scores, int *out_n)
+static int select_best_bins(const float fs,int *out_best3, float *out_scores, int *out_n)
 {
     int n_frames = (s_ring_fill < VS_BREATH_FRAMES) ? s_ring_fill : VS_BREATH_FRAMES;
     if (n_frames < 16) { *out_n = 0; return -1; }
@@ -906,9 +925,7 @@ static int select_best_bins(const float fs,
  *    Step 3: 在 "呼吸去除后的信号" 上做心跳带通 + 三路估计
  *            → 这样可以避免呼吸谐波串扰心跳检测!
 */
-static void estimate_single_bin(int bin, float fs,
-                                int n_breath, int n_heart,
-                                float *out_breath, float *out_heart)
+static void estimate_single_bin(int bin, float fs,int n_breath, int n_heart,float *out_breath, float *out_heart)
 {
     float buf_b[VS_BREATH_FRAMES];
     float buf_h[VS_HEART_FRAMES];
@@ -979,8 +996,7 @@ void vital_signs_init(void)
     hann_init();
 }
 
-int vital_signs_process_frame(const uint16_t *raw_samples, uint32_t n,
-                              float *out_breath_bpm, float *out_heart_bpm)
+int vital_signs_process_frame(const uint16_t *raw_samples, uint32_t n,float *out_breath_bpm, float *out_heart_bpm)//处理一帧数据
 {
     *out_breath_bpm = 0.0f;
     *out_heart_bpm  = 0.0f;

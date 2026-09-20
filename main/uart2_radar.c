@@ -8,9 +8,8 @@ static const char *TAG = "uart2_radar";
 
 /* 
  * CRC-8 (MAXIM/DALLAS, 多项式 0x31)
- * poly = x^8 + x^5 + x^4 + 1 = 0x31 (bits 7..0)
+ * poly = x^8 + x^5 + x^4 + 1 = 0x31 (bits 7..0)//多项式
  * init = 0x00, no final XOR
- * 广泛用于 1-Wire / SMBus, 此处复用作短帧完整性校验
 */
 static uint8_t crc8_maxim(const uint8_t *data, uint32_t len)
 {
@@ -32,7 +31,8 @@ static uint8_t crc8_maxim(const uint8_t *data, uint32_t len)
 // 初始化 UART2
 void uart2_radar_init(void)
 {
-    uart_config_t uart_cfg = {
+    uart_config_t uart_cfg = 
+    {
         .baud_rate = UART2_RADAR_BAUD,
         .data_bits = UART_DATA_8_BITS,
         .parity    = UART_PARITY_DISABLE,

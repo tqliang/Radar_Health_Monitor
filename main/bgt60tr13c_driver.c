@@ -9,16 +9,16 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-static const char* TAG = "bgt60tr13c-driver";
+static const char* TAG = "bgt60tr13c-driver";//日志标签
 spi_device_handle_t spi;
 bool radar_configured = false;
 
-/* Determine size of received frame defined by [ samples * chirps * rx_antennas(3) ] */
+// 一帧数据的样本数
 static uint32_t frame_size = XENSIV_BGT60TR13C_CONF_NUM_SAMPLES_PER_CHIRP * 
                                     XENSIV_BGT60TR13C_CONF_NUM_CHIRPS_PER_FRAME * 
                                     XENSIV_BGT60TR13C_CONF_NUM_RX_ANTENNAS;
 
-/* Word reverse function for ESP32 - converts between big/little endian */
+// 字节序转换函数，将大端转换为小端
 uint32_t xensiv_bgt60tr13c_platform_word_reverse(uint32_t word) 
 {
     return ((word & 0x000000FF) << 24) |
@@ -36,12 +36,10 @@ esp_err_t xensiv_bgt60tr13c_init(spi_host_device_t spi_host, spi_device_interfac
     ESP_ERROR_CHECK(spi_bus_add_device(spi_host, dev_config, &spi));
 
     /* Read chipid and verify that it is properly connected */
-    uint32_t chip_id = xensiv_bgt60tr13c_get_reg(XENSIV_BGT60TR13C_REG_CHIP_ID);
+    uint32_t chip_id = xensiv_bgt60tr13c_get_reg(XENSIV_BGT60TR13C_REG_CHIP_ID);//读芯片ID
 
-    uint32_t chip_id_digital = (chip_id & XENSIV_BGT60TR13C_REG_CHIP_ID_DIGITAL_ID_MSK) >>
-                               XENSIV_BGT60TR13C_REG_CHIP_ID_DIGITAL_ID_POS;
-    uint32_t chip_id_rf = (chip_id & XENSIV_BGT60TR13C_REG_CHIP_ID_RF_ID_MSK) >>
-                          XENSIV_BGT60TR13C_REG_CHIP_ID_RF_ID_POS;
+    uint32_t chip_id_digital = (chip_id & XENSIV_BGT60TR13C_REG_CHIP_ID_DIGITAL_ID_MSK) >> XENSIV_BGT60TR13C_REG_CHIP_ID_DIGITAL_ID_POS;//提取数字芯片ID
+    uint32_t chip_id_rf = (chip_id & XENSIV_BGT60TR13C_REG_CHIP_ID_RF_ID_MSK) >> XENSIV_BGT60TR13C_REG_CHIP_ID_RF_ID_POS;//提取RF芯片ID
 
     if ((chip_id_digital == 3U) && (chip_id_rf == 3U)) 
     {
@@ -60,7 +58,8 @@ esp_err_t xensiv_bgt60tr13c_init(spi_host_device_t spi_host, spi_device_interfac
     /* Soft Reset Internals */
     ESP_RETURN_ON_ERROR(xensiv_bgt60tr13c_soft_reset(XENSIV_BGT60TR13C_RESET_SW), TAG, "Failed to soft reset radar SW");
 
-    /* General settings from bgt60tr13c_config.h ; Interrupt is triggered when FIFO > 2048 bits ; HS mode off */
+   /* General settings from bgt60tr13c_config.h ;
+    Interrupt triggers when FIFO >= 1055 samples (~1582 bytes) ; HS mode off */
     ESP_RETURN_ON_ERROR(xensiv_bgt60tr13c_configure(), TAG, "Failed to configure radar registers");
 
     /* Bypass FIFO error notification while configuring */
@@ -69,15 +68,13 @@ esp_err_t xensiv_bgt60tr13c_init(spi_host_device_t spi_host, spi_device_interfac
     return ESP_OK;
 }
 
-esp_err_t xensiv_bgt60tr13c_configure() 
+esp_err_t xensiv_bgt60tr13c_configure() //配置雷达寄存器
 {
     for(uint8_t reg_idx = 0; reg_idx < XENSIV_BGT60TR13C_CONF_NUM_REGS; reg_idx++) 
     {
         uint32_t val = radar_init_register_list[reg_idx];
-        uint32_t reg_addr = ((val & XENSIV_BGT60TR13C_SPI_REGADR_MSK) >>
-                                XENSIV_BGT60TR13C_SPI_REGADR_POS);
-        uint32_t reg_data = ((val & XENSIV_BGT60TR13C_SPI_DATA_MSK) >>
-                                XENSIV_BGT60TR13C_SPI_DATA_POS);
+        uint32_t reg_addr = ((val & XENSIV_BGT60TR13C_SPI_REGADR_MSK) >> XENSIV_BGT60TR13C_SPI_REGADR_POS);
+        uint32_t reg_data = ((val & XENSIV_BGT60TR13C_SPI_DATA_MSK) >>XENSIV_BGT60TR13C_SPI_DATA_POS);
 
         xensiv_bgt60tr13c_set_reg(reg_addr, reg_data, true);
     }
@@ -101,7 +98,8 @@ esp_err_t xensiv_bgt60tr13c_start_frame_capture()
 esp_err_t xensiv_bgt60tr13c_fifo_read(uint8_t *frame_buf, uint32_t buf_size, uint32_t words_to_read) 
 {
     /* Ensure buffer size is valid - must be multiple of 3 for 24-bit FIFO words */
-    if ((buf_size % 3) != 0) {
+    if ((buf_size % 3) != 0) 
+    {
         ESP_LOGE(TAG, "Invalid buffer size. Must be a multiple of 3");
         return ESP_ERR_INVALID_SIZE;
     }
@@ -301,9 +299,9 @@ esp_err_t get_frame_size(uint32_t *external_frame_size)
     return ESP_OK;
 }
 
-esp_err_t get_interrupt_frame_size_trigger(uint32_t *external_frame_size) 
+esp_err_t get_interrupt_frame_size_trigger(uint32_t *external_frame_size) //获取中断触发帧大小
 {
-    *external_frame_size = XENSIV_BGT60TR13C_IRQ_TRIGGER_FRAME_SIZE;
+    *external_frame_size = XENSIV_BGT60TR13C_IRQ_TRIGGER_FRAME_SIZE;//中断触发帧大小
     return ESP_OK;
 }
 

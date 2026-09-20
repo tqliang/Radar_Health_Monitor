@@ -50,7 +50,7 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
     uint32_t frame_size_samples = 0;
     esp_err_t err_check;
 
-    err_check = get_frame_size(&frame_size_samples);
+    err_check = get_frame_size(&frame_size_samples);//获取一帧数据的样本数
     if (err_check != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to get frame_size_samples: %s", esp_err_to_name(err_check));
@@ -63,7 +63,7 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
         vTaskDelete(NULL); return;
     }
 
-    uint32_t temp_buf_len_bytes = 255;
+    uint32_t temp_buf_len_bytes = 255;//每次从 FIFO 读取的字节数
 
 
     uint16_t *frame_buf = (uint16_t *)malloc(frame_size_samples * sizeof(uint16_t));
@@ -94,13 +94,17 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
              (double)VS_FS_HZ, VS_NUM_SAMPLES_PER_CHIRP,
              VS_BREATH_WINDOW_FRAMES, VS_HEART_WINDOW_FRAMES);
 
-    err_check = xensiv_bgt60tr13c_start_frame_capture();
+    err_check = xensiv_bgt60tr13c_start_frame_capture();//启动雷达数据采集
+
     if (err_check != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to start frame capture: %s", esp_err_to_name(err_check));
         free(frame_buf);
         free(temp_buf);
-        if (xSemaphore != NULL) { vSemaphoreDelete(xSemaphore); xSemaphore = NULL; }
+        if (xSemaphore != NULL) 
+        {
+            vSemaphoreDelete(xSemaphore); xSemaphore = NULL; 
+        }
         vTaskDelete(NULL); return;
     }
 
@@ -113,39 +117,40 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
         {
 
             // 新增FIFO硬件溢出检测
-            uint32_t fstat = xensiv_bgt60tr13c_get_reg(XENSIV_BGT60TR13C_REG_FSTAT_TR13C);
+            uint32_t fstat = xensiv_bgt60tr13c_get_reg(XENSIV_BGT60TR13C_REG_FSTAT_TR13C);//读FIFO状态寄存器
             // 溢出 + 下溢标志合并判断
             uint32_t fifo_err_mask = XENSIV_BGT60TR13C_REG_FSTAT_FOF_ERR_MSK | XENSIV_BGT60TR13C_REG_FSTAT_FUF_ERR_MSK;
-            if (fstat & fifo_err_mask)
+            if (fstat & fifo_err_mask)//检查FIFO溢出或下溢标志位
             {
-                if (fstat & XENSIV_BGT60TR13C_REG_FSTAT_FOF_ERR_MSK)
+                if (fstat & XENSIV_BGT60TR13C_REG_FSTAT_FOF_ERR_MSK)//检查FIFO溢出标志位
                 {
                     ESP_LOGE(TAG, "HW FIFO OVERFLOW ERROR! Data lost");
                 }
-                if (fstat & XENSIV_BGT60TR13C_REG_FSTAT_FUF_ERR_MSK)
+                if (fstat & XENSIV_BGT60TR13C_REG_FSTAT_FUF_ERR_MSK)//检查FIFO下溢标志位
                 {
                     ESP_LOGE(TAG, "HW FIFO UNDERFLOW ERROR! Read empty FIFO");
                 }
 
                 // 执行FIFO/状态机软件复位
                 uint32_t main_reg = xensiv_bgt60tr13c_get_reg(XENSIV_BGT60TR13C_REG_MAIN);
-                main_reg |= XENSIV_BGT60TR13C_REG_MAIN_RESET_MSK;
-                xensiv_bgt60tr13c_set_reg(XENSIV_BGT60TR13C_REG_MAIN, main_reg, true);
+                main_reg |= XENSIV_BGT60TR13C_REG_MAIN_RESET_MSK;//设置复位位
+                xensiv_bgt60tr13c_set_reg(XENSIV_BGT60TR13C_REG_MAIN, main_reg, true);//写入复位位
                 vTaskDelay(pdMS_TO_TICKS(10));
-                // 必须清除复位位，否则芯片持续复位无法采集
-                main_reg &= ~XENSIV_BGT60TR13C_REG_MAIN_RESET_MSK;
-                xensiv_bgt60tr13c_set_reg(XENSIV_BGT60TR13C_REG_MAIN, main_reg, true);
+                // 必须清除复位位，否则芯片持续复位无法采集数据
+                main_reg &= ~XENSIV_BGT60TR13C_REG_MAIN_RESET_MSK;//清除复位位
+                xensiv_bgt60tr13c_set_reg(XENSIV_BGT60TR13C_REG_MAIN, main_reg, true);//写入复位位
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
-            memset(temp_buf, 0, temp_buf_len_bytes);
-            err_check = xensiv_bgt60tr13c_fifo_read(temp_buf, temp_buf_len_bytes, 0);
 
-            if (err_check != ESP_OK)
+            memset(temp_buf, 0, temp_buf_len_bytes);//清空temp_buf
+            err_check = xensiv_bgt60tr13c_fifo_read(temp_buf, temp_buf_len_bytes, 0);//读取FIFO数据
+
+            if (err_check != ESP_OK)//读取FIFO数据失败
             {
                 ESP_LOGE(TAG, "FIFO read error: %s. Resetting frame progress. Total frames before error: %lu",
                          esp_err_to_name(err_check), total_frames_collected_count);
                 current_idx = 0;
-                memset(frame_buf, 0, frame_size_samples * sizeof(uint16_t));
+                memset(frame_buf, 0, frame_size_samples * sizeof(uint16_t));//清空frame_buf
                 vTaskDelay(pdMS_TO_TICKS(100)); /* 给雷达一点恢复时间 */
                 ESP_LOGI(TAG, "Attempting to re-start frame capture after FIFO error.");
                 xensiv_bgt60tr13c_soft_reset(XENSIV_BGT60TR13C_RESET_FIFO);
@@ -155,7 +160,7 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
             }
 
 
-            for (uint32_t i = 0; (i + 2) < temp_buf_len_bytes; i += 3)
+            for (uint32_t i = 0; (i + 2) < temp_buf_len_bytes; i += 3)//解包FIFO数据
             {
                 /* 提取第 1 个 sample（占 12 bit） */
                 if (current_idx < frame_size_samples)
@@ -165,7 +170,7 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
                 }
                 else
                 {
-                    break; /* frame_buf 已满，跳出解包循环 */
+                    break; 
                 }
 
                 /* 提取第 2 个 sample（占 12 bit，从 B1 低 4 位 + B2 组成） */
@@ -174,19 +179,19 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
                     frame_buf[current_idx] = ((temp_buf[i + 1] & 0x0F) << 8) | temp_buf[i + 2];
                     current_idx++;
                 }
+
                 else
                 {
                     break;
                 }
             }
 
-            if (current_idx >= frame_size_samples)
+            if (current_idx >= frame_size_samples)  // 收满一帧的处理
             {
                 total_frames_collected_count++;
 
                 float breath_bpm = 0.0f, heart_bpm = 0.0f;
-                vital_signs_process_frame(frame_buf, frame_size_samples,
-                                          &breath_bpm, &heart_bpm);
+                vital_signs_process_frame(frame_buf, frame_size_samples,&breath_bpm, &heart_bpm);
 
                
                 int target_bin = vital_signs_last_bin();
@@ -195,8 +200,7 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
                        (double)breath_bpm, (double)heart_bpm);
                 fflush(stdout);
 
-                uart2_radar_send_frame(breath_bpm, heart_bpm,
-                                       total_frames_collected_count);
+                uart2_radar_send_frame(breath_bpm, heart_bpm,total_frames_collected_count);
 
                 
                 current_idx = 0;
@@ -282,10 +286,10 @@ void app_main(void)
         .sclk_io_num     = SPI_SCK_PIN,
         .quadwp_io_num   = -1,        /* -1 表示不使用（只做标准 SPI，非 Quad SPI） */
         .quadhd_io_num   = -1,
-        .max_transfer_sz = 4096
+        .max_transfer_sz = 4096//最大传输大小
     };
 
-    ret = spi_bus_initialize(SPI_HOST, &bus_config, SPI_DMA_CH_AUTO);
+    ret = spi_bus_initialize(SPI_HOST, &bus_config, SPI_DMA_CH_AUTO);//初始化 SPI 总线
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
@@ -293,7 +297,7 @@ void app_main(void)
     }
     ESP_LOGI(TAG, "Successfully initialized SPI bus!");
 
-    spi_device_interface_config_t dev_config =
+    spi_device_interface_config_t dev_config =//配置 SPI 设备接口
     {
         .command_bits = 0,
         .address_bits = 0,
