@@ -1,6 +1,6 @@
 # Radar Health Monitor
 
-基于 ESP32-S3 + Infineon BGT60TR13C 毫米波雷达的**非接触式生命体征检测系统**，可在 MCU 端实时计算呼吸率 (Breath Rate) 和心率 (Heart Rate)，并通过 UART 发送至上位机。
+基于 ESP32-S3 + Infineon BGT60TR13C 毫米波雷达的**非接触式生命体征检测系统**，可在 MCU 端实时计算呼吸率 (Breath Rate) 和心率 (Heart Rate)，并通过 UART 发送至 端侧MCU。
 
 ## 硬件需求
 

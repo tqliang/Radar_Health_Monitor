@@ -71,7 +71,7 @@
 #define VS_BIN_MAX              80
 
 /* 
- *  [1] 距离 bin 聚合
+ *  距离 bin 聚合
  *      16 chirp × 3 ant = 48 个值 → 取平均作为该 bin 的当前帧幅度
 */
 static void reduce_to_range_bins(const uint16_t *raw, float bins_out[VS_NUM_SAMPLES_PER_CHIRP])// 距离 bin 聚合
@@ -91,12 +91,12 @@ static void reduce_to_range_bins(const uint16_t *raw, float bins_out[VS_NUM_SAMP
                 uint32_t idx = (uint32_t)(c * A + a) * (uint32_t)N + (uint32_t)i;// 计算当前样本的索引
                 sum += raw[idx];
             }
-        bins_out[i] = (float)sum / (float)(C * A);
+        bins_out[i] = (float)sum / (float)(C * A);// 计算当前 bin 的当前帧幅度
     }
 }
 
 /* 
- *  [2] MTI 静态背景消除 (指数滑动平均)
+ *   MTI 静态背景消除 (指数滑动平均)
  *      bg[t] = α·bg[t-1] + (1-α)·x[t]
  *      y[t]  = x[t] - bg[t]
  *      α=0.98 → 时间常数 ~50 帧 ~= 10 秒
@@ -121,7 +121,7 @@ static void mti_apply(float x[VS_NUM_SAMPLES_PER_CHIRP])
 }
 
 /* 
- *  [3] 距离维 3 点加权平滑 (抑制 bin 间跳变)
+ *  距离维 3 点加权平滑 (抑制 bin 间跳变)
 */
 static void range_smooth(float x[VS_NUM_SAMPLES_PER_CHIRP])
 {
@@ -136,7 +136,7 @@ static void range_smooth(float x[VS_NUM_SAMPLES_PER_CHIRP])
 }
 
 /* 
- *  [4] 环形时间序列缓冲 (每个 bin 一条时间序列)
+ * 环形时间序列缓冲 (每个 bin 一条时间序列)
  *      容量 VS_RING_SIZE = 128 帧
 */
 static float s_ring[VS_NUM_SAMPLES_PER_CHIRP][VS_RING_SIZE];// 环形缓冲，每个 bin 一条时间序列
@@ -166,7 +166,7 @@ static int ring_get_recent(int bin, float *out, int n)
 }
 
 /* 
- *  [5] 时间维 3 点滑动平均 (让波形更平滑)
+ *  时间维 3 点滑动平均 (让波形更平滑)
 */
 static void time_smooth(float *x, int n)
 {
@@ -187,7 +187,7 @@ static inline void remove_dc(float *x, int n)
 }
 
 /* 
- *  [6] 双二阶 (biquad) IIR 滤波器 + filtfilt (零相位)
+ *  双二阶 (biquad) IIR 滤波器 + filtfilt (零相位)
  *      HP + LP 级联 = 带通滤波器
  *      filtfilt: forward + backward，零相位，幅值响应平方
 */
@@ -277,8 +277,8 @@ static void highpass_filtfilt(float *x, int n, float fc, float fs)
 }
 
 /* 
- *  [7] radix-2 原地 FFT (Cooley-Tukey)
- *      输入: x[2*N] = [Re0, Im0, Re1, Im1, ...]
+ * radix-2 原地 FFT (Cooley-Tukey)
+ *    输入: x[2*N] = [Re0, Im0, Re1, Im1, ...]
 */
 static float s_fft_cos[VS_FFT_SIZE];
 static float s_fft_sin[VS_FFT_SIZE];
@@ -829,7 +829,11 @@ static float history_update(history_t *h, float raw_estimate,
 static int select_best_bins(const float fs,int *out_best3, float *out_scores, int *out_n)
 {
     int n_frames = (s_ring_fill < VS_BREATH_FRAMES) ? s_ring_fill : VS_BREATH_FRAMES;
-    if (n_frames < 16) { *out_n = 0; return -1; }
+    if (n_frames < 16) 
+    { 
+        *out_n = 0; 
+        return -1; 
+    }
 
     float workspace[VS_BREATH_FRAMES];
 
@@ -862,8 +866,9 @@ static int select_best_bins(const float fs,int *out_best3, float *out_scores, in
 
         float bp_var = 0.0f;
         float bp_mean = 0.0f;
-        for (int i = 0; i < n_frames; i++) bp_mean += buf[i];
+        for (int i = 0; i < n_frames; i++) bp_mean += buf[i];// 带通后的能量均值
         bp_mean /= (float)n_frames;
+
         for (int i = 0; i < n_frames; i++)
         {
             float d = buf[i] - bp_mean;
@@ -930,24 +935,23 @@ static void estimate_single_bin(int bin, float fs,int n_breath, int n_heart,floa
     float buf_b[VS_BREATH_FRAMES];
     float buf_h[VS_HEART_FRAMES];
 
-    ring_get_recent(bin, buf_b, n_breath);
-    ring_get_recent(bin, buf_h, n_heart);
+    ring_get_recent(bin, buf_b, n_breath);// 获取最近 n_breath 个样本
+    ring_get_recent(bin, buf_h, n_heart);// 获取最近 n_heart 个样本
 
-    time_smooth(buf_b, n_breath);
-    time_smooth(buf_h, n_heart);
+    time_smooth(buf_b, n_breath);// 对 buf_b 做时间平滑
+    time_smooth(buf_h, n_heart);// 对 buf_h 做时间平滑
 
     /* ---------------- 呼吸估计 ---------------- */
     float sig_b[VS_BREATH_FRAMES];
     memcpy(sig_b, buf_b, sizeof(float) * n_breath);
-    bandpass_filtfilt(sig_b, n_breath, VS_BREATH_LOW, VS_BREATH_HIGH, fs);
+    bandpass_filtfilt(sig_b, n_breath, VS_BREATH_LOW, VS_BREATH_HIGH, fs);// 对 sig_b 做呼吸带通滤波
 
     float b_fft, b_ac, b_peak, snr_b;
     b_fft  = estimate_fft(sig_b, n_breath, VS_BREATH_LOW, VS_BREATH_HIGH, fs, &snr_b);
     b_ac   = estimate_autocorr(sig_b, n_breath, VS_BREATH_LOW, VS_BREATH_HIGH, fs);
     b_peak = estimate_peaks(sig_b, n_breath, VS_BREATH_LOW, VS_BREATH_HIGH, fs);
 
-    float breath_raw = fuse_estimates(b_fft, b_ac, b_peak,
-                                      VS_BREATH_LOW * 60.0f, VS_BREATH_HIGH * 60.0f);
+    float breath_raw = fuse_estimates(b_fft, b_ac, b_peak,VS_BREATH_LOW * 60.0f, VS_BREATH_HIGH * 60.0f);
 
     /* ---------------- 心跳估计 (先除呼吸!) ----------------
      *  方法: 对 buf_h 先做 "高通 > 0.7Hz" (消除呼吸及其谐波),
@@ -1003,27 +1007,27 @@ int vital_signs_process_frame(const uint16_t *raw_samples, uint32_t n,float *out
 
     if (n != (uint32_t)VS_FRAME_TOTAL_SAMPLES) return 0;
 
-    /* (1) 聚合到距离 bin */
+    /* 聚合到距离 bin */
     float bins[VS_NUM_SAMPLES_PER_CHIRP];
     reduce_to_range_bins(raw_samples, bins);
 
-    /* (2) MTI 消静态背景 */
+    /* MTI 消静态背景 */
     mti_apply(bins);
 
-    /* (3) 距离维平滑 */
+    /*距离维平滑 */
     range_smooth(bins);
 
-    /* (4) 入环形缓冲 */
+    /* 入环形缓冲 */
     ring_push(bins);
 
-    /* (5) 缓冲不足就等 */
+    /*缓冲不足就等 */
     if (s_ring_fill < 20) return 0;
 
     float fs = VS_FS_HZ;
     int n_breath = (s_ring_fill < VS_BREATH_FRAMES) ? s_ring_fill : VS_BREATH_FRAMES;
     int n_heart  = (s_ring_fill < VS_HEART_FRAMES)  ? s_ring_fill : VS_HEART_FRAMES;
 
-    /* (6) 选 top-N 个 bin */
+    /* 选 top-N 个 bin */
     int   top_bins[3];
     float top_scores[3];
     int   n_top = 0;
@@ -1043,11 +1047,11 @@ int vital_signs_process_frame(const uint16_t *raw_samples, uint32_t n,float *out
     }
     s_last_bin = best_bin;
 
-    /* (7) 对 best bin 做估计 */
+    /*对 best bin 做估计 */
     float breath_bpm = 0.0f, heart_bpm = 0.0f;
     estimate_single_bin(top_bins[0], fs, n_breath, n_heart, &breath_bpm, &heart_bpm);
 
-    /* (8) 多 bin 融合: 如果 best bin 的心跳为 0，尝试 top2/top3 */
+    /* 多 bin 融合: 如果 best bin 的心跳为 0，尝试 top2/top3 */
     if (heart_bpm <= 0.0f && n_top >= 2)
     {
         float b2 = 0.0f, h2 = 0.0f;
@@ -1062,7 +1066,7 @@ int vital_signs_process_frame(const uint16_t *raw_samples, uint32_t n,float *out
         }
     }
 
-    /* (9) 生理合理性约束: 呼吸 < 心跳 */
+    /*生理合理性约束: 呼吸 < 心跳 */
     if (breath_bpm > 0.0f && heart_bpm > 0.0f && breath_bpm >= heart_bpm)
     {
         /* 如果串扰了, 把较低值当作呼吸, 较高值当作心跳
@@ -1079,7 +1083,7 @@ int vital_signs_process_frame(const uint16_t *raw_samples, uint32_t n,float *out
         }
     }
 
-    /* (10) 历史 fallback + 平滑 + 变化率限制 */
+    /*  历史 fallback + 平滑 + 变化率限制 */
     float b_final = history_update(&s_breath_hist, breath_bpm,
                                    VS_BREATH_LOW * 60.0f, VS_BREATH_HIGH * 60.0f,
                                    VS_MAX_DELTA_BREATH);
@@ -1087,7 +1091,7 @@ int vital_signs_process_frame(const uint16_t *raw_samples, uint32_t n,float *out
                                    VS_HEART_LOW * 60.0f, VS_HEART_HIGH * 60.0f,
                                    VS_MAX_DELTA_HEART);
 
-    /* (11) 再做一次交叉验证: 输出前确保 heart > breath (生理上一定成立) */
+    /*  再做一次交叉验证: 输出前确保 heart > breath (生理上一定成立) */
     if (b_final > 0.0f && h_final > 0.0f && h_final <= b_final)
     {
         /* 如果心跳最终值 ≤ 呼吸 → 说明有串扰, 保持呼吸, 心跳用上次值 */

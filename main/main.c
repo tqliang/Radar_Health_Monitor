@@ -81,6 +81,7 @@ void xensiv_bgt60tr13c_radar_task(void *pvParameters)
         vTaskDelete(NULL);
         return;
     }
+
     memset(frame_buf, 0, frame_size_samples * sizeof(uint16_t));
 
     /* 打印关键尺寸信息，方便在串口监视器中核对 */
@@ -247,7 +248,7 @@ void app_main(void)
 
     esp_err_t ret;
 
-    gpio_config_t power_conf =
+    gpio_config_t power_conf =//配置雷达电源引脚
     {
         .pin_bit_mask = (1ULL << RADAR_3V3TO1V8_POWER_PIN),
         .mode         = GPIO_MODE_OUTPUT,
@@ -255,15 +256,15 @@ void app_main(void)
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type    = GPIO_INTR_DISABLE
     };
+
     gpio_config(&power_conf);
     gpio_set_level(RADAR_3V3TO1V8_POWER_PIN, 1);
     vTaskDelay(pdMS_TO_TICKS(50));                 /* LDO 输出电压稳定需要时间 */
 
     int power_level = gpio_get_level(RADAR_3V3TO1V8_POWER_PIN);
-    ESP_LOGI(TAG, "Radar 3V3->1V8 power enabled (GPIO %d), actual level: %d",
-             RADAR_3V3TO1V8_POWER_PIN, power_level);
+    ESP_LOGI(TAG, "Radar 3V3->1V8 power enabled (GPIO %d), actual level: %d",RADAR_3V3TO1V8_POWER_PIN, power_level);
 
-    gpio_config_t reset_conf =
+    gpio_config_t reset_conf =//配置雷达复位引脚
     {
         .pin_bit_mask = (1ULL << RADAR_RESET_PIN),
         .mode         = GPIO_MODE_OUTPUT,
@@ -290,6 +291,7 @@ void app_main(void)
     };
 
     ret = spi_bus_initialize(SPI_HOST, &bus_config, SPI_DMA_CH_AUTO);//初始化 SPI 总线
+
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
@@ -400,13 +402,13 @@ void app_main(void)
     }
 
     ESP_LOGI(TAG, "Creating radar task");
-    BaseType_t task_created = xTaskCreate(xensiv_bgt60tr13c_radar_task,
-                                          "radar-task", 8192 * 2, NULL, 5, NULL);
+    BaseType_t task_created = xTaskCreate(xensiv_bgt60tr13c_radar_task,"radar-task", 8192 * 2, NULL, 5, NULL);
     if (task_created != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to create radar task");
         gpio_isr_handler_remove(RADAR_IRQ_PIN);
-        vSemaphoreDelete(xSemaphore); xSemaphore = NULL;
+        vSemaphoreDelete(xSemaphore); 
+        xSemaphore = NULL;
     }
     else
     {

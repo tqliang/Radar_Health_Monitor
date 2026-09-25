@@ -41,7 +41,6 @@ void uart2_radar_init(void)
         .source_clk = UART_SCLK_DEFAULT,
     };
 
-    /* 安装驱动: 1KB 内部缓冲足够, 我们只用 TX */
     esp_err_t err = uart_driver_install(UART2_RADAR_NUM,
                                         UART2_RADAR_BUF_SIZE,
                                         0,          /* 不使用 tx 缓冲 */

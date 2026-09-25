@@ -29,13 +29,13 @@ uint32_t xensiv_bgt60tr13c_platform_word_reverse(uint32_t word)
 
 esp_err_t xensiv_bgt60tr13c_init(spi_host_device_t spi_host, spi_device_interface_config_t *dev_config) 
 {
-    /* Ensure the dev_config has been configured */
+    /* 确保 dev_config 已配置 */
     assert(dev_config != NULL);
     
-    /* attach the device to the spi bus */
+    /* 将设备挂载到 SPI 总线上 */
     ESP_ERROR_CHECK(spi_bus_add_device(spi_host, dev_config, &spi));
 
-    /* Read chipid and verify that it is properly connected */
+    /* 读芯片ID，验证雷达是否正确连接 */
     uint32_t chip_id = xensiv_bgt60tr13c_get_reg(XENSIV_BGT60TR13C_REG_CHIP_ID);//读芯片ID
 
     uint32_t chip_id_digital = (chip_id & XENSIV_BGT60TR13C_REG_CHIP_ID_DIGITAL_ID_MSK) >> XENSIV_BGT60TR13C_REG_CHIP_ID_DIGITAL_ID_POS;//提取数字芯片ID
@@ -55,14 +55,14 @@ esp_err_t xensiv_bgt60tr13c_init(spi_host_device_t spi_host, spi_device_interfac
         return ESP_ERR_INVALID_RESPONSE;
     }
     
-    /* Soft Reset Internals */
+    /* 软件复位内部状态 */
     ESP_RETURN_ON_ERROR(xensiv_bgt60tr13c_soft_reset(XENSIV_BGT60TR13C_RESET_SW), TAG, "Failed to soft reset radar SW");
 
-   /* General settings from bgt60tr13c_config.h ;
-    Interrupt triggers when FIFO >= 1055 samples (~1582 bytes) ; HS mode off */
+   /* 加载 bgt60tr13c_config.h 中的通用配置;
+    FIFO >= 1055 个样本 (~1582 字节) 时触发中断 ; HS 模式关闭 */
     ESP_RETURN_ON_ERROR(xensiv_bgt60tr13c_configure(), TAG, "Failed to configure radar registers");
 
-    /* Bypass FIFO error notification while configuring */
+    /* 配置期间绕过 FIFO 错误通知 */
     radar_configured = true;
 
     return ESP_OK;
@@ -83,13 +83,13 @@ esp_err_t xensiv_bgt60tr13c_configure() //配置雷达寄存器
 
 esp_err_t xensiv_bgt60tr13c_start_frame_capture() 
 {
-    /* Gets MAIN register data, ensuring nothing is overwritten */
+    /* 读取 MAIN 寄存器的当前值，确保不会覆盖其他位 */
     uint32_t tx_data = xensiv_bgt60tr13c_get_reg(XENSIV_BGT60TR13C_REG_MAIN);
 
-    /* Masks with command to start frame capture */
+    /* 设置帧采集启动位 */
     tx_data |= XENSIV_BGT60TR13C_REG_MAIN_FRAME_START_MSK;
     
-    /* Sets register to start frame capture. verification is false since it is a write only bit in the register */
+    /* 写回 MAIN 寄存器启动帧采集。不验证，因为该位是只写自清零位 */
     ESP_RETURN_ON_ERROR(xensiv_bgt60tr13c_set_reg(XENSIV_BGT60TR13C_REG_MAIN, tx_data, false), TAG, "Failed to start radar frame capture");
 
     return ESP_OK;
@@ -97,14 +97,14 @@ esp_err_t xensiv_bgt60tr13c_start_frame_capture()
 
 esp_err_t xensiv_bgt60tr13c_fifo_read(uint8_t *frame_buf, uint32_t buf_size, uint32_t words_to_read) 
 {
-    /* Ensure buffer size is valid - must be multiple of 3 for 24-bit FIFO words */
+    /* 确保缓冲区大小合法 —— 必须是 3 的倍数（对应 24-bit FIFO 字） */
     if ((buf_size % 3) != 0) 
     {
         ESP_LOGE(TAG, "Invalid buffer size. Must be a multiple of 3");
         return ESP_ERR_INVALID_SIZE;
     }
 
-    /* Acquire SPI bus */
+    /* 占用 SPI 总线 */
     esp_err_t ret = spi_device_acquire_bus(spi, portMAX_DELAY);
     if (ret != ESP_OK) 
     {
@@ -113,20 +113,20 @@ esp_err_t xensiv_bgt60tr13c_fifo_read(uint8_t *frame_buf, uint32_t buf_size, uin
     }
 
     /* 
-     * Build Burst Read Command 
-     * According to datasheet Table 52: Use NBURSTS=0 for unbounded read
+     * 构建 Burst 读命令 
+     * 根据数据手册 Table 52: NBURSTS=0 表示无界读取
      */
     uint32_t burst_cmd = XENSIV_BGT60TR13C_SPI_BURST_MODE_CMD |
                          (XENSIV_BGT60TR13C_REG_FIFO_TR13C << XENSIV_BGT60TR13C_SPI_BURST_MODE_SADR_POS);
-    // RWB=0 for read, NBURSTS=0 for unbounded - these are already 0 by default
+    // RWB=0 读操作, NBURSTS=0 无界读取 —— 默认值已是 0
 
-    /* Apply word reversal for correct byte order on ESP32 */
+    /* 对 ESP32 做字节翻转以匹配正确字节序 */
     burst_cmd = xensiv_bgt60tr13c_platform_word_reverse(burst_cmd);
 
     /* 
-     * Create buffers for the complete transaction:
-     * TX: 4 bytes (burst command) + buf_size bytes (dummy data for clocking)
-     * RX: 4 bytes (GSR0 + padding) + buf_size bytes (actual FIFO data)
+     * 为完整事务分配缓冲区:
+     * TX: 4 字节 (burst 命令) + buf_size 字节 (提供时钟用的空数据)
+     * RX: 4 字节 (GSR0 + 填充)  + buf_size 字节 (实际 FIFO 数据)
      */
     uint32_t total_length = 4 + buf_size;
     uint8_t *tx_buffer = calloc(total_length, 1);
@@ -141,21 +141,21 @@ esp_err_t xensiv_bgt60tr13c_fifo_read(uint8_t *frame_buf, uint32_t buf_size, uin
         return ESP_ERR_NO_MEM;
     }
 
-    /* Copy burst command to TX buffer */
+    /* 把 burst 命令拷贝到 TX 缓冲区 */
     memcpy(tx_buffer, &burst_cmd, 4);
-    /* Rest of TX buffer is already zeros (dummy bytes for clocking out FIFO data) */
+    /* TX 缓冲区剩余部分已经全为零 (用于提供时钟、泵出 FIFO 数据的空字节) */
 
     /* 
-     * Single SPI transaction: Send command + dummy bytes, receive GSR0 + FIFO data
-     * This follows the datasheet Figure 54 protocol in one continuous transaction
+     * 单次 SPI 事务: 发送命令 + 空字节，接收 GSR0 + FIFO 数据
+     * 遵循数据手册 Figure 54 协议，在一次连续事务中完成
      */
     spi_transaction_t transaction = 
     {
         .cmd = 0,
         .addr = 0,
-        .length = total_length * 8,      // Total TX length in bits
+        .length = total_length * 8,      // TX 总长度 (bit)
         .tx_buffer = tx_buffer,
-        .rxlength = total_length * 8,    // Total RX length in bits  
+        .rxlength = total_length * 8,    // RX 总长度 (bit)
         .rx_buffer = rx_buffer,
         .flags = 0
     };
@@ -164,13 +164,13 @@ esp_err_t xensiv_bgt60tr13c_fifo_read(uint8_t *frame_buf, uint32_t buf_size, uin
     
     if (ret == ESP_OK) 
     {
-        /* Check GSR0 for errors (first byte of received data) */
-        uint8_t gsr0_status = rx_buffer[0];
+        /* 检查 GSR0 是否有错误 (接收数据的第一字节) */
+        uint8_t gsr0_status = rx_buffer[0];//GSR0 错误码
         ret = xensiv_bgt60tr13c_check_gsr0_err(gsr0_status);
         
         if (ret == ESP_OK) 
         {
-            /* Copy FIFO data (skip first 4 bytes which are GSR0 + padding) */
+            /* 拷贝 FIFO 数据 (跳过前 4 字节，即 GSR0 + 填充) */
             memcpy(frame_buf, &rx_buffer[4], buf_size);
         } 
         else 
@@ -183,11 +183,11 @@ esp_err_t xensiv_bgt60tr13c_fifo_read(uint8_t *frame_buf, uint32_t buf_size, uin
         ESP_LOGE(TAG, "SPI FIFO transaction failed");
     }
 
-    /* Clean up buffers */
+    /* 清理缓冲区 */
     free(tx_buffer);
     free(rx_buffer);
 
-    /* Release bus */
+    /* 释放 SPI 总线 */
     spi_device_release_bus(spi);
 
     return ret;
@@ -195,17 +195,17 @@ esp_err_t xensiv_bgt60tr13c_fifo_read(uint8_t *frame_buf, uint32_t buf_size, uin
 
 esp_err_t xensiv_bgt60tr13c_set_reg(uint32_t reg_addr, uint32_t data, bool verify_transaction) 
 {
-    /* Prepare the command byte (7-bit address + R/W bit) */
+    /* 准备命令字节 (7-bit 地址 + R/W 位) */
     uint8_t tx_buffer[4];
 
-    tx_buffer[0] = (reg_addr << 1) | 0x01; // R/W bit set to 1 for write
+    tx_buffer[0] = (reg_addr << 1) | 0x01; // R/W 位 = 1，表示写操作
 
-    /* Prepare the data bytes (24-bit data) */
+    /* 准备 24-bit 数据字节 (高位先行) */
     tx_buffer[1] = (data >> 16) & 0xFF;
     tx_buffer[2] = (data >> 8) & 0xFF;
     tx_buffer[3] = data & 0xFF;
 
-    /* Execute transaction */
+    /* 执行 SPI 事务 */
     spi_transaction_t t = {
         .cmd = 0,
         .addr = 0,
@@ -216,15 +216,19 @@ esp_err_t xensiv_bgt60tr13c_set_reg(uint32_t reg_addr, uint32_t data, bool verif
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(spi_device_polling_transmit(spi, &t));
     
-    /* GSR0 error code logging */
+    /* 记录 GSR0 错误码 */
     ESP_ERROR_CHECK_WITHOUT_ABORT(xensiv_bgt60tr13c_check_gsr0_err(t.rx_data[0]));
 
-    if (verify_transaction) {
+    if (verify_transaction) // 验证写入是否成功
+    {
         uint32_t check_rx = xensiv_bgt60tr13c_get_reg(reg_addr) & 0x00FFFFFF;
         uint32_t check_tx = data & 0x00FFFFFF;
-        if (check_rx != check_tx) {
+        if (check_rx != check_tx) 
+        {
             ESP_LOGW(TAG, "Verification for transaction failed. Tried to write: %lu, instead register reads: %lu", check_tx, check_rx);
-        } else {
+        } 
+        else 
+        {
             ESP_LOGI(TAG, "Transaction verified. Successful write to register %lu", reg_addr);
         }
     }
@@ -233,11 +237,11 @@ esp_err_t xensiv_bgt60tr13c_set_reg(uint32_t reg_addr, uint32_t data, bool verif
 
 uint32_t xensiv_bgt60tr13c_get_reg(uint32_t reg_addr) 
 {
-    /* Prepare the command byte (7-bit address + R/W bit) */
+    /* 准备命令字节 (7-bit 地址 + R/W 位) */
     uint8_t tx_buffer[4] = {0};
-    tx_buffer[0] = (reg_addr << 1) | 0x00; // R/W bit set to 0 for read
+    tx_buffer[0] = (reg_addr << 1) | 0x00; // R/W 位 = 0，表示读操作
     
-    /* Execute transaction */
+    /* 执行 SPI 事务 */
     spi_transaction_t t = {
         .cmd = 0,
         .addr = 0,
@@ -249,10 +253,10 @@ uint32_t xensiv_bgt60tr13c_get_reg(uint32_t reg_addr)
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(spi_device_polling_transmit(spi, &t));
     
-    /* GSR0 error code logging */
+    /* 记录 GSR0 错误码 */
     ESP_ERROR_CHECK_WITHOUT_ABORT(xensiv_bgt60tr13c_check_gsr0_err(t.rx_data[0]));
 
-    // Skip GSR0 byte (t.rx_data[0]) and only return the 24-bit register data
+    // 跳过 GSR0 字节 (t.rx_data[0])，只返回 24-bit 寄存器数据
     return (t.rx_data[1] << 16) | (t.rx_data[2] << 8) | t.rx_data[3];
 }
 
@@ -308,10 +312,8 @@ esp_err_t get_interrupt_frame_size_trigger(uint32_t *external_frame_size) //获�
 esp_err_t xensiv_bgt60tr13c_check_gsr0_err(uint8_t gsr0_err_code) 
 {
     esp_err_t ret = ESP_OK;
-    /* Assuming error code is 8 bits with MSB on the left */
-    uint8_t error_masked = gsr0_err_code & (XENSIV_BGT60TR13C_REG_GSR0_FOU_ERR_MSK |
-                                            XENSIV_BGT60TR13C_REG_GSR0_SPI_BURST_ERR_MSK |
-                                            XENSIV_BGT60TR13C_REG_GSR0_CLK_NUM_ERR_MSK);
+    /* 假设错误码是 8 位，MSB 在左边 */
+    uint8_t error_masked = gsr0_err_code & (XENSIV_BGT60TR13C_REG_GSR0_FOU_ERR_MSK | XENSIV_BGT60TR13C_REG_GSR0_SPI_BURST_ERR_MSK | XENSIV_BGT60TR13C_REG_GSR0_CLK_NUM_ERR_MSK);
 
     if (error_masked & XENSIV_BGT60TR13C_REG_GSR0_CLK_NUM_ERR_MSK) 
     {
@@ -350,7 +352,7 @@ esp_err_t xensiv_bgt60tr13c_read_back_registers(void)
                  reg_addr, expected_data, actual_data, 
                  (expected_data == actual_data) ? "✓" : "✗");
         
-        // Small delay to prevent overwhelming the log
+        // 加一个小延迟，防止日志输出过于频繁
         vTaskDelay(pdMS_TO_TICKS(10));
     }
     
