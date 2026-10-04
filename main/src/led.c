@@ -1,9 +1,3 @@
-/*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Unlicense OR CC0-1.0
- */
-/* Includes */
 #include "led.h"
 
 /* Private variables */
@@ -23,29 +17,20 @@ uint8_t get_led_state(void)
 
 void led_on(void)
 {
-    /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
+
     led_strip_set_pixel(led_strip, 0, 16, 16, 16);
-
-    /* Refresh the strip to send data */
     led_strip_refresh(led_strip);
-
-    /* Update LED state */
     led_state = true;
 }
 
 void led_off(void)
 {
-    /* Set all LED off to clear all pixels */
     led_strip_clear(led_strip);
-
-    /* Update LED state */
     led_state = false;
 }
 
 void led_init(void)
 {
-    // ESP_LOGI(TAG, "example configured to blink addressable led!");
-    /* LED strip initialization with the GPIO and pixels number*/
     led_strip_config_t strip_config = //LED strip 配置结构体，用于配置 LED strip 的参数
     {
         .strip_gpio_num = 48,
@@ -86,9 +71,7 @@ void led_off(void)
 
 void led_init(void)
 {
-    // ESP_LOGI(TAG, "example configured to blink gpio led!");
     gpio_reset_pin(CONFIG_EXAMPLE_BLINK_GPIO);
-    /* Set the GPIO as a push/pull output */
     gpio_set_direction(CONFIG_EXAMPLE_BLINK_GPIO, GPIO_MODE_OUTPUT);
     gpio_set_level(CONFIG_EXAMPLE_BLINK_GPIO, 1);
 }

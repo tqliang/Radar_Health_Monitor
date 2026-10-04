@@ -11,6 +11,7 @@
 #include "nvs_flash.h"
 #include "driver/gpio.h"
 #include "esp_bt.h"
+#include "esp_bt_main.h"
 
 static const char *TAG = "OTA";
 
@@ -26,8 +27,7 @@ static int s_retry_num = 0;
 static EventGroupHandle_t s_wifi_event_group;
 static const int WIFI_CONNECTED_BIT = BIT0;
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base,
-                               int32_t event_id, void *event_data)
+static void wifi_event_handler(void *arg, esp_event_base_t event_base,int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
@@ -93,7 +93,7 @@ static void wifi_init_sta(void)
                                            WIFI_CONNECTED_BIT,
                                            pdFALSE,
                                            pdFALSE,
-                                           pdMS_TO_TICKS(10000));
+                                           pdMS_TO_TICKS(10000));//等待10秒，或连接成功
     if (bits & WIFI_CONNECTED_BIT)
     {
         ESP_LOGI(TAG, "connected to ap SSID:%s", WIFI_SSID);
@@ -124,15 +124,15 @@ static void ota_task(void *pvParameter)
 
     ESP_LOGI(TAG, "Attempting to download update from %s", OTA_URL);
     esp_err_t ret = esp_https_ota(&ota_config);
-    if (ret == ESP_OK)
+    if (ret == ESP_OK)//如果OTA更新成功
     {
         ESP_LOGI(TAG, "OTA update successful, restarting in 3 seconds...");
         vTaskDelay(pdMS_TO_TICKS(3000));
-        esp_restart();
+        esp_restart();//重启设备
     }
-    else
+    else//如果OTA更新失败
     {
-        ESP_LOGE(TAG, "OTA update failed: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "OTA update failed: %s", esp_err_to_name(ret));//打印错误信息
     }
 
     ESP_LOGI(TAG, "disconnecting WiFi...");

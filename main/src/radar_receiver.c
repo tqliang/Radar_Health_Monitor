@@ -1,5 +1,3 @@
-
-
 #include "radar_receiver.h"
 #include <string.h>
 #include "driver/uart.h"

@@ -17,7 +17,7 @@ void update_heart_rate(void)
 {
     if (radar_data_available())
     {
-        float raw = radar_get_heart_bpm();
+        float raw = radar_get_heart_bpm();// 从雷达接收器获取心率数据
         if (raw > 0.0f)
         {
             heart_rate = (uint8_t)(raw + 0.5f);

@@ -1,8 +1,3 @@
-/*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Unlicense OR CC0-1.0
- */
 #include "uart.h"
 #include "driver/uart.h"
 #include "esp_log.h"

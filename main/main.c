@@ -73,7 +73,7 @@ static void auto_io_gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_
 static void respiration_gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 static void example_write_event_env(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
-static const char *GATTS_TAG = "GATTS_DEMO";// 日志标签，方便在串口输出中区分本示例的信息
+static const char *GATTS_TAG = "Radar_Communication";// 日志标签，方便在串口输出中区分本示例的信息
 static esp_gatt_char_prop_t heart_property = 0;//心率特征属性，后续根据能力组合读/指示等位
 static esp_gatt_char_prop_t auto_io_property = 0;//LED 控制特征属性，这里主要用于写入
 static esp_gatt_char_prop_t respiration_property = 0;//呼吸特征属性，支持读和指示
@@ -540,7 +540,7 @@ static void auto_io_gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_
         /* 建立连接后，主动请求更新连接参数。 */
         esp_ble_conn_update_params_t conn_params = {0};
         memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
-        conn_params.latency = 0;
+        conn_params.latency = 0;// 连接延迟为 0
         conn_params.max_int = 0x20;
         conn_params.min_int = 0x10;
         conn_params.timeout = 400;
@@ -716,12 +716,14 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
             if (gatts_if == ESP_GATT_IF_NONE || /* 没指定具体接口时，所有 profile 都要收事件。 */
                     gatts_if == gl_profile_tab[idx].gatts_if) 
                     {
-                if (gl_profile_tab[idx].gatts_cb) {
+                if (gl_profile_tab[idx].gatts_cb) 
+                {
                     gl_profile_tab[idx].gatts_cb(event, gatts_if, param);
                 }
             }
         }
-    } while (0);
+    } 
+    while (0);
 }
 
 
